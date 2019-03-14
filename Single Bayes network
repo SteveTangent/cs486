@@ -1,0 +1,449 @@
+import numpy as np
+import copy
+
+"""
+factor:
+
+[ X     Y     Z     Val
+  1     1     1     0.1
+  1     1     0     0.9 ]
+"""
+
+
+def del_matrix_column(matrix,del_list):
+    length = len(del_list)
+    i = 0
+    while i < length:
+        matrix = np.delete(matrix,del_list[i],0)
+        del del_list[0]
+        for m in range(len(del_list)):
+            del_list[m] = del_list[m] - 1
+        length = len(del_list)
+
+    return matrix
+
+def comp_list(list1,list2):
+    if len(list1) != len(list2):
+        return False
+    else:
+        for i in range(len(list1)):
+            if list1[i] != list2[i]:
+                return False
+    return True
+
+
+def Union(lst1, lst2):
+    final_list = list(set(lst1) | set(lst2))
+    return final_list
+
+
+def intersection(lst1, lst2):
+    return list(set(lst1) & set(lst2))
+
+
+def two_d_list(col,row):
+    matrix = [None] * row
+    for i in range(col):
+        matrix[i] = [None] * col
+    return matrix
+
+
+def initial_matrix(matrix,row,col):
+    my_col = col
+    my_row = row
+    for i in range(my_row):
+        number = bin(i)
+        number = number[2:]
+        number = number.zfill(my_col)
+        for m in range(my_col):
+            matrix[i][m] = number[m]
+    return matrix
+
+# ********************************************************************************************************
+
+
+class factor:
+    """
+    factor is a class that represents the truth table of some variables and their probabilities
+    matrix is the corresponding truth value
+    var_list is the variable list that has corressponding order with matrix's column
+    row and column described the matrix only
+
+    eg:
+    var_list = A B C
+    row = 8
+    column = 3
+    matrix =  000
+              001
+              010
+              011
+              100   ....
+
+    """
+    def __init__(self,prob_list,var_list):
+        row = len(prob_list)
+        col = len(var_list)
+        self.row = row
+        self.col = col
+        self.prob_list = prob_list
+        self.var_list = var_list
+        matrix = np.zeros([row,col],dtype=str)
+        self.true_list = []
+        self.false_list = []
+        self.matrix = initial_matrix(matrix,row,col)
+
+    def __mul__(self, other):
+        variable_list = Union(self.var_list, other.var_list)
+
+        row_num = (2 ** len(variable_list))
+        col_num = len(variable_list)
+        final_prob = [None] * row_num
+        initial_list = [None] * row_num
+        index_list_mine = []
+        index_list_other = []
+        compare_list_mine = []
+        compare_list_other = []
+        prob_mine =[]
+        prob_other = []
+
+        # create 000,001,010 .....
+        for i in range(row_num):
+            number = bin(i)
+            number = number[2:]
+            number = number.zfill(col_num)
+            initial_list[i] = number
+
+        # create a list that contain corresponding index of self.variable in result variable
+        for m in range(self.col):
+            for n in range(col_num):
+                if self.var_list[m] == variable_list[n]:
+                    index_list_mine.append(n)
+
+        for i in range(len(initial_list)):
+            temp_string = []
+            for m in range(len(index_list_mine)):
+                temp_string.append(initial_list[i][index_list_mine[m]])
+            compare_list_mine.append(temp_string)
+
+        for m in range(other.col):
+            for n in range(col_num):
+                if other.var_list[m] == variable_list[n]:
+                    index_list_other.append(n)
+
+        for i in range(len(initial_list)):
+            temp_string = []
+            for m in range(len(index_list_other)):
+                temp_string.append(initial_list[i][index_list_other[m]])
+            compare_list_other.append(temp_string)
+
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        # get probability list
+        for m in range(len(compare_list_mine)):
+            for n in range(self.row):
+                if comp_list(compare_list_mine[m],self.matrix[n]):
+                    prob_mine.append(self.prob_list[n])
+                    continue
+
+        for m in range(len(compare_list_other)):
+            for n in range(other.row):
+                if comp_list(compare_list_other[m],other.matrix[n]):
+                    prob_other.append(other.prob_list[n])
+                    continue
+
+        for i in range(row_num):
+            final_prob[i] = prob_mine[i] * prob_other[i]
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+        result_factor = factor(final_prob,variable_list)
+        return result_factor
+
+    def restrict(self,variable,value):
+        if value == 0:
+            value = 1
+        else:
+            value = 0
+        index = 0
+        delet_list =[]
+        for i in range(self.col):
+            if self.var_list[i] == variable:
+                index = i
+
+        for i in range(self.row):
+            if self.matrix[:,index][i] == str(value):
+                delet_list.append(i)
+
+        copy_del_list = delet_list.copy()
+
+        self.matrix = del_matrix_column(self.matrix,copy_del_list)
+        self.matrix = np.delete(self.matrix,index,1)
+
+        for i in range(len(delet_list)):
+            self.prob_list[delet_list[i]] = -1
+
+        length = len(self.prob_list)
+        i = 0
+        while i < length:
+            if self.prob_list[i] == -1:
+                del self.prob_list[i]
+                i -= 1
+                length -= 1
+            i+=1
+        self.var_list.remove(variable)
+        self.col -= 1
+        self.row = len(self.prob_list)
+        if value == 0:
+            self.true_list.append(variable)
+        else:
+            self.false_list.append(variable)
+
+    def sum_out(self,variable):
+        new_prob_list = []
+        index = 0
+        for i in range(self.col):
+            if self.var_list[i] == variable:
+                index = i
+
+        self.var_list.remove(variable)
+        self.matrix = np.delete(self.matrix,index,1)
+        new_row = 2 ** len(self.var_list)
+
+        new_matrix = np.zeros((new_row,len(self.var_list)),dtype=str)
+        new_matrix = initial_matrix(new_matrix,new_row,len(self.var_list))
+
+        for m in range(new_row):
+            sum = 0
+            for n in range(self.row):
+                if comp_list(new_matrix[m],self.matrix[n]):
+                    sum += self.prob_list[n]
+            new_prob_list.append(sum)
+
+        self.matrix = new_matrix
+        self.prob_list = new_prob_list
+        self.row = new_row
+        self.col = len(self.var_list)
+
+    def looks_like(self):
+        print(self.var_list)
+        temp_matrix = self.matrix.copy()
+        temp_prob_list = self.prob_list.copy()
+        final_prob_list = []
+
+        for i in range(self.row):
+            temp_sublist = []
+            temp_sublist.append(temp_prob_list[i])
+            final_prob_list.append(temp_sublist)
+        print(np.append(temp_matrix,final_prob_list,axis=1))
+
+    def normalize(self, variable):
+        # sum variable
+        index = 0
+        for i in range(self.col):
+            if self.var_list[i] == variable:
+                index = i
+
+        new_prob_list =[]
+        temp_factor = factor(self.prob_list.copy(),self.var_list.copy())
+        temp_factor.sum_out(variable)
+        for i in range(self.row):
+            temp_copy_list = self.matrix[i].copy()
+            temp_copy_list = np.delete(temp_copy_list,index,0)
+            for m in range(temp_factor.row):
+                if comp_list(temp_copy_list,temp_factor.matrix[m]):
+                    new_prob_list.append(self.prob_list[i] / temp_factor.prob_list[m])
+
+        self.prob_list = new_prob_list
+        return
+
+# ********************************************************************************************************
+
+
+def del_extend_hv(my_hv_list,var_list):
+    hidden_var_list = my_hv_list.copy()
+    length = len(my_hv_list)
+    i = 0
+    while i < length:
+        for m in range(len(var_list)):
+            if set(hidden_var_list[i]) == set(var_list[m]):
+                del hidden_var_list[i]
+                i -= 1
+                length -= 1
+                if len(hidden_var_list) == 0:
+                    break
+        i += 1
+    return hidden_var_list
+
+
+def del_factor(fac_list,var_list):
+    factor_list = fac_list.copy()
+    length = len(factor_list)
+    i = 0
+    while i < length:
+        for m in range(len(var_list)):
+            if set(factor_list[i].var_list) == set(var_list[m]):
+                del factor_list[i]
+                i -= 1
+                length -= 1
+                if len(factor_list) == 0:
+                    break
+        i += 1
+    return factor_list
+
+
+def extend_hidden_variable(orderlist_hv):
+    # hv: hidden variable
+    new_hv_list = [[orderlist_hv[0]]]
+    for i in range(len(orderlist_hv) - 1):
+        temp_list = [orderlist_hv[i],orderlist_hv[i+1]]
+        new_hv_list.append(temp_list)
+
+    return new_hv_list
+
+
+def find_factor(factor_list,variable_list):
+    for i in range(len(factor_list)):
+        if set(factor_list[i].var_list) == set(variable_list):
+            return i
+
+    return -1
+
+
+def create_factor(var_list,prob_list):
+    col = len(var_list)
+    row = len(prob_list)
+    matrix = two_d_list(col + 1, row + 1)
+    for i in range(col):
+        matrix[i][0] = var_list[i]
+
+
+def inference_all_factor(factor_list,orderlist):
+    """
+    :param factor_list: factors that we can used to query truth table among variables
+    :param query_var: target variable that we want to query
+    :param orderlist: the order of variables that will be eliminated
+    :param evid_list: evidence list contains multiply evidence
+    :return: return a factor
+    """
+
+    temp_factor_list = factor_list.copy()
+    extend_hv_list = orderlist
+    extend_factor_list = []
+    print(extend_hv_list)
+
+    for i in range(len(extend_hv_list)-1,0,-1):
+
+        inter_var = intersection(extend_hv_list[i],extend_hv_list[i-1])
+        index_1 = find_factor(temp_factor_list,extend_hv_list[i])
+        index_2 = find_factor(temp_factor_list, extend_hv_list[i-1])
+
+        new_factor = temp_factor_list[index_1] * temp_factor_list[index_2]
+        new_factor.sum_out(inter_var[0])
+
+        del_var_list = [extend_hv_list[i],extend_hv_list[i-1]]
+        temp_factor_list = del_factor(temp_factor_list,del_var_list)
+        extend_hv_list = del_extend_hv(extend_hv_list,del_var_list)
+
+        extend_hv_list.append(new_factor.var_list)
+        temp_factor_list.append(new_factor)
+        extend_factor_list.append(new_factor)
+
+    return extend_factor_list
+
+
+def inference(factor_list,query_var,orderlist,evid_list):
+    # query var should be the last variable of the chain
+    extend_hv = extend_hidden_variable(orderlist)
+    query_list = [query_var,evid_list]
+    index = -1
+    for i in range(len(orderlist)):
+        if orderlist[i] == evid_list:
+            index = i
+
+    # index == -1 means evidence_list is null
+    if index == -1:
+        extend_hv_back = extend_hv[0:]
+        my_extend_factor_list_back = inference_all_factor(factor_list, extend_hv_back)
+        target_factor = my_extend_factor_list_back[-1]
+    else:
+        index += 1
+        extend_hv_back = extend_hv[index:]
+        extend_hv_front = extend_hv[:index]
+
+        my_extend_factor_list_back = inference_all_factor(factor_list, extend_hv_back)
+        my_extend_factor_list_front = inference_all_factor(factor_list, extend_hv_front)
+
+    # no extension of factor_list means the evidence variable is the first or last
+
+        if len(my_extend_factor_list_back) == 0:
+            my_extend_factor_list_back.append(factor_list[find_factor(factor_list,extend_hv_back[0])])
+        elif len(my_extend_factor_list_front) == 0:
+            my_extend_factor_list_front.append(factor_list[find_factor(factor_list, extend_hv_front[0])])
+
+        target_factor = my_extend_factor_list_back[-1] * my_extend_factor_list_front[-1]
+
+    # normalize:
+    target_factor.looks_like()
+    target_factor.normalize(query_var)
+    target_factor.looks_like()
+
+    return target_factor
+
+
+"""
+matrix = [['a','b','c','d'],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
+matrix = np.array(matrix)
+l1 = ['a','b','c']
+l2 = ['c','d','e']
+
+
+varA =['A','B']
+probA = [0.8,0.2,0.9,0.1]
+varB = ['B','C']
+probB = [0.4,0.6,0.7,0.3]
+
+
+factorA = factor(probA,varA)
+factorB = factor(probB,varB)
+
+factorC = factorA * factorB
+
+factorC.normalize('B')
+var_XYZ = ['X','Y','Z']
+prob_XYZ = [0.7,0.3,0.6,0.4,0.8,0.2,0.9,0.1]
+"""
+# ********************************************************************************************************
+# factor 0:
+var_list0 = ['A']
+prob_list0 =[0.7,0.3]
+factor0 = factor(prob_list0,var_list0)
+
+# factor 1:
+var_list1 = ['A','C']
+prob_list1 =[0.85,0.15,0.2,0.8]
+factor1 = factor(prob_list1,var_list1)
+
+# factor 2:
+var_list2 = ['C','G']
+prob_list2 =[0.8,0.2,0,1]
+factor2 = factor(prob_list2,var_list2)
+
+# factor 3:
+var_list3 = ['G','L']
+prob_list3 =[0.8,0.2,0.3,0.7]
+factor3 = factor(prob_list3,var_list3)
+
+# factor 4:
+var_list4 = ['L','S']
+prob_list4 =[0.7,0.3,0.1,0.9]
+factor4 = factor(prob_list4,var_list4)
+
+# factor list:
+factor_list = [factor0,factor1,factor2,factor3,factor4]
+
+# variable list
+hv_list = ['A','C','G','L','S']
+
+factor0.looks_like()
+factor1.looks_like()
+factor2.looks_like()
+factor3.looks_like()
+factor4.looks_like()
